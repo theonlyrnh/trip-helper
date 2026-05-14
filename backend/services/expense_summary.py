@@ -23,6 +23,7 @@ class ExpenseSummary:
             .filter(
                 Invoice.trip_id == trip.id,
                 Invoice.reimbursement_status == ReimbursementStatus.THIS_TRIP,
+                Invoice.include_in_summary == True,
             )
             .all()
         )
@@ -32,6 +33,7 @@ class ExpenseSummary:
         lodging = Decimal("0.00")
         meal = Decimal("0.00")
         refund_change = Decimal("0.00")
+        travel_insurance = Decimal("0.00")
         other = Decimal("0.00")
 
         for inv in invoices:
@@ -57,10 +59,12 @@ class ExpenseSummary:
                 meal += amount
             elif cat == ExpenseCategory.REFUND_CHANGE_FEE:
                 refund_change += amount
+            elif cat == ExpenseCategory.TRAVEL_INSURANCE:
+                travel_insurance += amount
             else:
                 other += amount
 
-        invoice_total = intercity + local + lodging + meal + refund_change + other
+        invoice_total = intercity + local + lodging + meal + refund_change + travel_insurance + other
         trip_days = trip.trip_days or trip.confirmed_start_date and trip.confirmed_end_date and (
             (trip.confirmed_end_date - trip.confirmed_start_date).days + 1
         ) or 0
@@ -75,6 +79,7 @@ class ExpenseSummary:
             "lodging_amount": float(lodging),
             "meal_amount": float(meal),
             "refund_change_fee": float(refund_change),
+            "travel_insurance_amount": float(travel_insurance),
             "other_amount": float(other),
             "invoice_total_amount": float(invoice_total),
             "trip_days": trip_days,

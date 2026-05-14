@@ -31,6 +31,7 @@ class ParsedInvoice:
 
     transport_no: str | None = None
     seat_class: str | None = None
+    depart_time: str | None = None
 
     hotel_name: str | None = None
     checkin_date: date | None = None

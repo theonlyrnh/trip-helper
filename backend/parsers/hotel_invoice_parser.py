@@ -60,7 +60,7 @@ class HotelInvoiceParser(BaseParser):
                 result.nights = max(delta, 1)
 
         # Amount – prefer 价税合计, fallback to ¥/元 patterns
-        total_match = re.search(r"(?:价税合计|合计金额|合计)[^¥]*(?:[¥￥]\s*(\d+\.?\d*))", raw_text, re.DOTALL)
+        total_match = re.search(r"(?:价税合计|合计金额|合计)[：:]?\s*[¥￥]?\s*(\d+\.?\d{2})", raw_text)
         if total_match:
             amt = Decimal(total_match.group(1))
             if 0 < amt < 100000:
@@ -84,5 +84,31 @@ class HotelInvoiceParser(BaseParser):
         buyer_match = re.search(r"(?:购买方|购货方)[：:]\s*(\S+)", raw_text)
         if buyer_match:
             result.buyer_name = buyer_match.group(1)
+
+        # Lodging nights – extract from "数量" field when unit is "天"
+        nights = None
+        # Handle PyMuPDF vertical text: "单  位" or "单 位" or "单位"
+        unit_is_day = re.search(r"单\s*位[：:]?\s*天", raw_text)
+        if unit_is_day or "天" in raw_text:
+            # Handle "数  量" or "数量" with spaces
+            qty_match = re.search(r"数\s*量[：:]?\s*(\d+)", raw_text)
+            if qty_match:
+                try:
+                    nights = int(qty_match.group(1))
+                    if 1 <= nights <= 365:
+                        result.nights = nights
+                except ValueError:
+                    pass
+
+        # Fallback: extract from 备注 like "入离日期:12-5至12-6,共1天"
+        if nights is None:
+            remark_nights = re.search(r"共\s*(\d+)\s*[天晚]", raw_text)
+            if remark_nights:
+                try:
+                    nights = int(remark_nights.group(1))
+                    if 1 <= nights <= 365:
+                        result.nights = nights
+                except ValueError:
+                    pass
 
         return result

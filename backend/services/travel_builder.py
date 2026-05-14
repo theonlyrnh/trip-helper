@@ -34,24 +34,35 @@ class TravelBuilder:
             InvoiceType.RIDE_HAILING_INVOICE: TransportType.RIDE_HAILING,
         }
 
-        # Try to parse depart_time from invoice if available
+        # Parse depart_time from invoice's depart_time_str (e.g. "15:18")
         depart_time = None
-        if invoice.business_date:
+        if invoice.depart_time_str:
             import re as _re
-            tm = _re.search(r"(\d{1,2}:\d{2})", str(invoice.business_date))
+            from datetime import time as _time
+            tm = _re.match(r"(\d{1,2}):(\d{2})", invoice.depart_time_str)
+            if tm:
+                try:
+                    depart_time = _time(int(tm.group(1)), int(tm.group(2)))
+                except ValueError:
+                    pass
+
+        # For flights, prefer flight_date over business_date, and use airport fields
+        seg_depart_date = invoice.flight_date or invoice.business_date
+        seg_from_place = invoice.depart_airport or invoice.from_place
+        seg_to_place = invoice.arrive_airport or invoice.to_place
 
         segment = TravelSegment(
             trip_id=invoice.trip_id,
             invoice_id=invoice.id,
             transport_type=transport_map.get(invoice.invoice_type, TransportType.OTHER),
-            depart_date=invoice.business_date,
+            depart_date=seg_depart_date,
             depart_time=depart_time,
             from_city=invoice.from_city,
             to_city=invoice.to_city,
-            from_place=invoice.from_place,
-            to_place=invoice.to_place,
+            from_place=seg_from_place,
+            to_place=seg_to_place,
             transport_no=invoice.transport_no,
-            seat_class=invoice.seat_class,
+            seat_class=invoice.seat_class or invoice.cabin_class,
             amount=invoice.total_amount,
             source_document_id=invoice.document_id,
             confidence=invoice.confidence,

@@ -47,6 +47,45 @@ REFUND_CHANGE_KEYWORDS = [
     "变更费", "退改签费用", "退票", "改签",
 ]
 
+PLATFORM_BOOKING_KEYWORDS = [
+    "携程", "Trip.com", "飞猪", "美团", "同程", "去哪儿",
+    "艺龙", "华住会", "锦江", "订单详情", "酒店订单",
+    "已完成", "已在线付", "费用明细", "房型", "酒店位置",
+]
+
+PLATFORM_SELLER_KEYWORDS = [
+    "携程", "赫程", "上海赫程国际旅行社", "美团", "飞猪",
+    "阿里旅行", "同程", "艺龙", "去哪儿", "途牛", "驴妈妈",
+    "商旅", "旅行社", "国际旅行社", "旅游服务", "票务代理",
+    "经纪代理", "代订",
+]
+
+PLATFORM_HOTEL_ITEM_KEYWORDS = [
+    "代订住宿费", "代订酒店", "酒店代订", "住宿服务",
+    "经纪代理服务*代订住宿费", "旅游服务*代订住宿费",
+    "商旅服务*住宿", "代理服务*住宿", "预订服务*住宿",
+]
+
+FLIGHT_ORDER_KEYWORDS = [
+    "订单详情", "行程已结束", "总额", "订单号", "单程", "往返",
+    "航班号", "航空公司", "经济舱", "商务舱", "头等舱",
+    "起飞", "到达", "机场", "T1", "T2", "T3",
+    "出行信息", "发票报销", "行李额", "选座", "保险",
+    "出行保障", "服务包", "返现", "权益",
+]
+
+PLATFORM_FLIGHT_ITEM_KEYWORDS = [
+    "代订机票费", "代订机票", "机票费", "航空运输服务",
+    "客运服务", "经纪代理服务*代订机票费", "旅游服务*代订机票费",
+    "商旅服务*机票", "票务代理服务", "机票代理服务",
+]
+
+INSURANCE_KEYWORDS = [
+    "保险服务", "航空意外险", "机票航空意外险",
+    "国内机票航空意外险", "交通意外险", "出行保险",
+    "保险费", "保单号", "意外伤害保险",
+]
+
 # ── Regex patterns ─────────────────────────────────────────────────
 
 TRAIN_NO_PATTERN = re.compile(r"\b[GDCZTK]\d{1,4}\b")
@@ -87,7 +126,49 @@ def classify_invoice(raw_text: str) -> ClassificationResult:
 
 def _classify_by_keywords(text: str) -> ClassificationResult:
     """Match against strong keyword lists."""
-    # Check refund/change fee first – only if NOT a valid travel ticket
+    has_invoice_fields = bool(re.search(r"发票号码|发票代码|购买方名称|纳税人识别号|价税合计|税额", text))
+
+    # ── Refund ticket with flight info in remarks: classify as refund, not travel ──
+    has_refund_item = "退票费" in text or "改签费" in text
+    has_broker_service = "经纪代理服务" in text or "经纪代理" in text
+    if has_refund_item and has_broker_service:
+        return ClassificationResult(
+            invoice_type=InvoiceType.OTHER,
+            expense_category=ExpenseCategory.REFUND_CHANGE_FEE,
+            confidence=0.90,
+            reason="项目含退票/改签费，归类为退改签费用",
+        )
+
+    # ── Order screenshots FIRST (before refund/train checks) ──
+    flight_order_hits = sum(1 for kw in FLIGHT_ORDER_KEYWORDS if kw in text)
+    if flight_order_hits >= 3 and not has_invoice_fields:
+        return ClassificationResult(
+            invoice_type="FLIGHT_ORDER_PROOF",
+            expense_category=ExpenseCategory.INTERCITY_TRANSPORT,
+            confidence=0.85,
+            reason=f"匹配机票订单关键词 {flight_order_hits} 个",
+        )
+
+    platform_hits = sum(1 for kw in PLATFORM_BOOKING_KEYWORDS if kw in text)
+    if platform_hits >= 2 and not has_invoice_fields:
+        return ClassificationResult(
+            invoice_type="HOTEL_BOOKING_PROOF",
+            expense_category=ExpenseCategory.LODGING,
+            confidence=0.85,
+            reason=f"匹配平台订单关键词 {platform_hits} 个，无正式发票字段",
+        )
+
+    # ── Insurance invoice ──
+    insurance_hits = sum(1 for kw in INSURANCE_KEYWORDS if kw in text)
+    if insurance_hits >= 1 and has_invoice_fields:
+        return ClassificationResult(
+            invoice_type="TRAVEL_INSURANCE_INVOICE",
+            expense_category="TRAVEL_INSURANCE",
+            confidence=0.85,
+            reason=f"匹配保险关键词 {insurance_hits} 个",
+        )
+
+    # ── Refund/change fee – only if NOT a valid travel ticket ──
     refund_hits = sum(1 for kw in REFUND_CHANGE_KEYWORDS if kw in text)
     has_train_no = bool(TRAIN_NO_PATTERN.search(text))
     has_flight_no = bool(FLIGHT_NO_PATTERN.search(text))
@@ -101,9 +182,23 @@ def _classify_by_keywords(text: str) -> ClassificationResult:
             reason=f"匹配退票/改签关键词 {refund_hits} 个，且非有效行程票据",
         )
 
-    # Check train
+    # Check hotel BEFORE train (住宿服务 is a stronger signal than ambiguous numbers)
+    hotel_hits = sum(1 for kw in HOTEL_KEYWORDS if kw in text)
+    # Strong hotel indicator: "住宿服务" alone is enough
+    has_strong_hotel = "住宿服务" in text or "住宿费" in text
+    if hotel_hits >= 2 or has_strong_hotel:
+        conf = 0.90 if has_strong_hotel else min(0.95, 0.80 + hotel_hits * 0.05)
+        return ClassificationResult(
+            invoice_type=InvoiceType.HOTEL_INVOICE,
+            expense_category=ExpenseCategory.LODGING,
+            confidence=conf,
+            reason=f"匹配酒店关键词 {hotel_hits} 个" + ("，含强特征'住宿服务'" if has_strong_hotel else ""),
+        )
+
+    # Check train – must have strong train signals
     train_hits = sum(1 for kw in TRAIN_KEYWORDS if kw in text)
-    if train_hits >= 2:
+    has_train_no = bool(TRAIN_NO_PATTERN.search(text))
+    if train_hits >= 2 and has_train_no:
         return ClassificationResult(
             invoice_type=InvoiceType.TRAIN_TICKET,
             expense_category=ExpenseCategory.INTERCITY_TRANSPORT,
@@ -119,16 +214,6 @@ def _classify_by_keywords(text: str) -> ClassificationResult:
             expense_category=ExpenseCategory.INTERCITY_TRANSPORT,
             confidence=min(0.95, 0.7 + flight_hits * 0.05),
             reason=f"匹配机票关键词 {flight_hits} 个",
-        )
-
-    # Check hotel
-    hotel_hits = sum(1 for kw in HOTEL_KEYWORDS if kw in text)
-    if hotel_hits >= 2:
-        return ClassificationResult(
-            invoice_type=InvoiceType.HOTEL_INVOICE,
-            expense_category=ExpenseCategory.LODGING,
-            confidence=min(0.95, 0.7 + hotel_hits * 0.05),
-            reason=f"匹配酒店关键词 {hotel_hits} 个",
         )
 
     # Check taxi

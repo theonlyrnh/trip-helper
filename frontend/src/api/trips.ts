@@ -82,6 +82,7 @@ export interface SummaryData {
   lodging_amount: number;
   meal_amount: number;
   refund_change_fee: number;
+  travel_insurance_amount: number;
   other_amount: number;
   invoice_total_amount: number;
   grand_total_amount: number;
@@ -225,6 +226,8 @@ export interface WorkspaceDoc {
   invoice_type: string | null;
   expense_category: string | null;
   total_amount: number | null;
+  order_total_amount: number | null;
+  nights: number | null;
   issue_count: number;
 }
 

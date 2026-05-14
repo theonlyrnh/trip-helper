@@ -119,9 +119,16 @@ def parse_train_ticket_words(words: list, page_width: float = 595) -> TrainTicke
             break
 
     # Find 乘车日期 (travel date) - has "开" suffix with time, middle-left area
+    # Don't skip by date value (same-day tickets have same invoice & travel date)
+    invoice_word = None
     for w, d in all_dates:
-        if d == result.invoice_date:
-            continue
+        if d == result.invoice_date and ("开票日期" in w[4] or w[0] > 300):
+            invoice_word = w
+            break
+
+    for w, d in all_dates:
+        if w is invoice_word:
+            continue  # Skip the invoice date word itself
         # Check if nearby words contain time + "开"
         has_time_nearby = False
         for w2 in words:
@@ -135,13 +142,20 @@ def parse_train_ticket_words(words: list, page_width: float = 595) -> TrainTicke
             result.travel_date = d
             break
 
-    # Fallback: any date not at top-right that has time nearby
+    # Fallback: any date below header area (not the invoice date word)
     if result.travel_date is None:
         for w, d in all_dates:
-            if d == result.invoice_date:
+            if w is invoice_word:
                 continue
-            if w[1] > 100:  # below header area
+            if w[1] > 100:
                 result.travel_date = d
+                # Also try to find time nearby
+                for w2 in words:
+                    if abs(w2[1] - w[1]) < 12 and time_re.search(w2[4]):
+                        tm = time_re.search(w2[4])
+                        if tm:
+                            result.depart_time = tm.group(1)
+                        break
                 break
 
     # ── Extract amounts ──

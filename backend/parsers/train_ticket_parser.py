@@ -50,6 +50,11 @@ class TrainTicketParser(BaseParser):
             except ValueError:
                 pass
 
+        # ── Depart time (e.g. "15:18开") ──
+        time_match = re.search(r"(\d{1,2}:\d{2})\s*开", raw_text)
+        if time_match:
+            result.depart_time = time_match.group(1)
+
         # ── Amount ──
         amounts = self.AMOUNT_RE.findall(raw_text)
         if amounts:

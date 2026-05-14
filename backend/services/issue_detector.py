@@ -42,8 +42,8 @@ class IssueDetector:
             db.add(issue)
         db.commit()
 
-        # Update trip issue count
-        trip.issue_count = len(issues)
+        # Update trip issue count (only unresolved)
+        trip.issue_count = sum(1 for i in issues if not i.resolved)
         db.commit()
 
         return issues
@@ -69,21 +69,22 @@ class IssueDetector:
                 )
             )
 
-        # Missing amount
+        # Missing amount – skip for order screenshots (they use order_total_amount)
         amount = inv.confirmed_amount or inv.total_amount
-        if amount is None or amount <= 0:
-            issues.append(
-                ReviewIssue(
-                    trip_id=trip.id,
-                    invoice_id=inv.id,
-                    document_id=inv.document_id,
-                    issue_type="MISSING_AMOUNT",
-                    severity=IssueSeverity.ERROR,
-                    message="未识别到有效金额",
-                    suggestion="请手动填写发票金额",
-                    auto_generated=True,
+        if inv.document_role not in ("ORDER_SCREENSHOT", "BOOKING_SCREENSHOT"):
+            if amount is None or amount <= 0:
+                issues.append(
+                    ReviewIssue(
+                        trip_id=trip.id,
+                        invoice_id=inv.id,
+                        document_id=inv.document_id,
+                        issue_type="MISSING_AMOUNT",
+                        severity=IssueSeverity.ERROR,
+                        message="未识别到有效金额",
+                        suggestion="请手动填写发票金额",
+                        auto_generated=True,
+                    )
                 )
-            )
 
         # Invalid amount (too large, likely picked up invoice code)
         if amount is not None and amount > 100000:
@@ -100,12 +101,16 @@ class IssueDetector:
                 )
             )
 
-        # Buyer name mismatch
+        # Buyer name mismatch – skip for platform hotel invoices
+        from services.classification_service import PLATFORM_SELLER_KEYWORDS
+        is_platform_seller = any(kw in (inv.seller_name or "") for kw in PLATFORM_SELLER_KEYWORDS)
+
         if (
             setting
             and setting.default_company_name
             and inv.buyer_name
             and setting.default_company_name not in inv.buyer_name
+            and not is_platform_seller
         ):
             issues.append(
                 ReviewIssue(
@@ -119,6 +124,32 @@ class IssueDetector:
                     auto_generated=True,
                 )
             )
+
+        # Platform seller with booking proof → INFO only
+        if is_platform_seller and inv.expense_category == "LODGING":
+            has_booking = db.query(Invoice).filter(
+                Invoice.trip_id == trip.id,
+                Invoice.document_role == "BOOKING_SCREENSHOT",
+                Invoice.actual_hotel_name == inv.actual_hotel_name,
+            ).first()
+            if has_booking:
+                issues.append(ReviewIssue(
+                    trip_id=trip.id, invoice_id=inv.id, document_id=inv.document_id,
+                    issue_type="PLATFORM_SELLER_WITH_BOOKING_PROOF",
+                    severity=IssueSeverity.INFO,
+                    message="平台代开发票，已有订单凭证佐证",
+                    suggestion="销售方为平台代理公司，已关联酒店订单截图",
+                    auto_generated=True,
+                ))
+            else:
+                issues.append(ReviewIssue(
+                    trip_id=trip.id, invoice_id=inv.id, document_id=inv.document_id,
+                    issue_type="PLATFORM_SELLER_NEEDS_PROOF",
+                    severity=IssueSeverity.WARNING,
+                    message="平台代开发票，建议补充订单截图",
+                    suggestion="建议上传酒店订单截图以佐证实际酒店和入住日期",
+                    auto_generated=True,
+                ))
 
         # Date out of trip range – skip for refund/change fees (they have different dates)
         if inv.expense_category != "REFUND_CHANGE_FEE":
@@ -172,5 +203,40 @@ class IssueDetector:
                     auto_generated=True,
                 )
             )
+
+        # Lodging nights validation
+        trip_start = trip.confirmed_start_date or trip.folder_date_start or trip.inferred_start_date
+        trip_end = trip.confirmed_end_date or trip.folder_date_end or trip.inferred_end_date
+        if trip_start and trip_end and trip.project_type in ("TRAVEL", None, ""):
+            trip_days = (trip_end - trip_start).days + 1
+            expected_nights = max(0, trip_days - 1)
+
+            # Sum lodging nights from hotel invoices
+            hotel_invoices = db.query(Invoice).filter(
+                Invoice.trip_id == trip.id,
+                Invoice.expense_category == "LODGING",
+                Invoice.include_in_summary == True,
+            ).all()
+            actual_nights = sum(inv.nights or 0 for inv in hotel_invoices)
+
+            if expected_nights > 0 and actual_nights > 0:
+                if actual_nights < expected_nights:
+                    issues.append(ReviewIssue(
+                        trip_id=trip.id,
+                        issue_type="LODGING_NIGHTS_INSUFFICIENT",
+                        severity=IssueSeverity.WARNING,
+                        message=f"住宿晚数可能不足：预计 {expected_nights} 晚，已识别 {actual_nights} 晚",
+                        suggestion="请检查是否缺少住宿发票，或确认是否有未开票住宿",
+                        auto_generated=True,
+                    ))
+                elif actual_nights > expected_nights:
+                    issues.append(ReviewIssue(
+                        trip_id=trip.id,
+                        issue_type="LODGING_NIGHTS_EXCEEDED",
+                        severity=IssueSeverity.WARNING,
+                        message=f"住宿晚数超过出差晚数：预计 {expected_nights} 晚，已识别 {actual_nights} 晚",
+                        suggestion="请确认是否包含非本次出差住宿或他人住宿",
+                        auto_generated=True,
+                    ))
 
         return issues

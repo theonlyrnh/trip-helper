@@ -2,7 +2,7 @@
 
 from datetime import datetime, date
 from decimal import Decimal
-from sqlalchemy import String, Integer, Float, Date, Numeric, DateTime, ForeignKey, Text, func
+from sqlalchemy import String, Integer, Float, Boolean, Date, Numeric, DateTime, ForeignKey, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
@@ -71,6 +71,29 @@ class Invoice(Base):
     reimbursement_status: Mapped[str] = mapped_column(
         String(50), nullable=False, default=ReimbursementStatus.THIS_TRIP
     )
+
+    depart_time_str: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
+    document_role: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="OFFICIAL_INVOICE"
+    )
+    include_in_summary: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True
+    )
+    platform_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    booking_order_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    actual_hotel_name: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # Flight order fields
+    order_total_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    insurance_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    ancillary_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    flight_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    depart_airport: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    arrive_airport: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    airline_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    cabin_class: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    linked_invoice_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 

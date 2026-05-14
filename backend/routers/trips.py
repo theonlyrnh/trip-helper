@@ -170,6 +170,7 @@ class SummaryResponse(BaseModel):
     lodging_amount: float
     meal_amount: float
     refund_change_fee: float
+    travel_insurance_amount: float
     other_amount: float
     invoice_total_amount: float
     grand_total_amount: float
@@ -222,6 +223,7 @@ def get_trip_summary(trip_id: int, db: Session = Depends(get_db)):
         lodging_amount=summary["lodging_amount"],
         meal_amount=summary["meal_amount"],
         refund_change_fee=summary.get("refund_change_fee", 0),
+        travel_insurance_amount=summary.get("travel_insurance_amount", 0),
         other_amount=summary["other_amount"],
         invoice_total_amount=summary["invoice_total_amount"],
         grand_total_amount=summary["grand_total_amount"],
@@ -253,15 +255,11 @@ def get_workspace(trip_id: int, db: Session = Depends(get_db)):
     rec_count = db.query(OCRResult).filter(
         OCRResult.trip_id == trip_id, OCRResult.success == True
     ).count()
-    issue_count = db.query(ReviewIssue).filter(
-        ReviewIssue.trip_id == trip_id, ReviewIssue.resolved == False
-    ).count()
-
     stats = {
         "total_files": doc_count,
         "recognized": rec_count,
         "review_count": trip.review_count or 0,
-        "issues": issue_count,
+        "issues": trip.issue_count or 0,
     }
 
     # Summary
@@ -290,6 +288,8 @@ def get_workspace(trip_id: int, db: Session = Depends(get_db)):
             "invoice_type": inv.invoice_type if inv else None,
             "expense_category": inv.expense_category if inv else None,
             "total_amount": float(inv.total_amount) if inv and inv.total_amount else None,
+            "order_total_amount": float(inv.order_total_amount) if inv and inv.order_total_amount else None,
+            "nights": inv.nights if inv else None,
             "issue_count": doc_issues,
         })
 
