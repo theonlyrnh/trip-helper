@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build output
+frontend/dist/
+
+# Runtime data
+backend/data/
+*.db
+*.db-journal
+
+# Environment (keep template, exclude real keys)
+.env
+
+# IDE
+.vscode/
+.idea/
+*.pyc
+__pycache__/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Design docs (internal only)
+出差助手设计文档.md
+出差助手prompt.md
+TODO.md
+ACCEPTANCE.md
+
+# Test data
+fapiao/
