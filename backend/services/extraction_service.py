@@ -76,6 +76,10 @@ class ExtractionService:
         if classification.invoice_type == "TRAVEL_INSURANCE_INVOICE":
             return ExtractionService._create_insurance_invoice(db, ocr_result, raw_text, classification)
 
+        # Handle general invoice (non-travel) – skip travel parsers
+        if classification.invoice_type == "GENERAL_INVOICE":
+            return ExtractionService._create_general_invoice(db, ocr_result, raw_text, classification)
+
         # Handle refund ticket – extract flight info from remarks for reference only
         if classification.expense_category == "REFUND_CHANGE_FEE":
             return ExtractionService._create_refund_ticket(db, ocr_result, raw_text, classification)
@@ -456,6 +460,92 @@ class ExtractionService:
         return invoice
 
     @staticmethod
+    def _create_general_invoice(db: Session, ocr_result: OCRResult, raw_text: str, classification) -> Invoice:
+        """Create a general (non-travel) invoice with proper amount calculation."""
+        import re as _re
+        from decimal import Decimal as _Decimal
+        from datetime import date as _date
+
+        # Find all ¥ amounts
+        all_amounts = _re.findall(r"[¥￥]\s*(\d+\.\d{2})", raw_text)
+        nums = []
+        for a in all_amounts:
+            try:
+                n = _Decimal(a)
+                if 1 < n < 100000:
+                    nums.append(n)
+            except: pass
+
+        # Largest is usually 价税合计, smallest is 税额, middle is 金额
+        amount = None
+        amount_without_tax = None
+        tax_amount = None
+        if len(nums) >= 3:
+            amount = max(nums)
+            tax_amount = min(nums)
+            nums.remove(amount)
+            nums.remove(tax_amount)
+            amount_without_tax = nums[0] if nums else None
+        elif len(nums) == 2:
+            amount = max(nums)
+            tax_amount = min(nums)
+            amount_without_tax = amount - tax_amount
+        elif len(nums) == 1:
+            amount = nums[0]
+
+        # Also try explicit 价税合计
+        total_m = _re.search(r"[（(]小写[）)]\s*[¥￥]\s*(\d+\.?\d{0,2})", raw_text)
+        if total_m:
+            try:
+                val = _Decimal(total_m.group(1))
+                if 1 < val < 100000:
+                    amount = val
+            except: pass
+
+        # Invoice number
+        inv_no = None
+        im = _re.search(r"发票号码[：:]\s*(\S+)", raw_text)
+        if im: inv_no = im.group(1)
+
+        # Date
+        inv_date = None
+        dm = _re.search(r"(\d{4})[年\-/\.](\d{1,2})[月\-/\.](\d{1,2})[日]?", raw_text)
+        if dm:
+            try: inv_date = _date(int(dm.group(1)), int(dm.group(2)), int(dm.group(3)))
+            except: pass
+
+        # Seller / Buyer
+        seller = None
+        sm = _re.search(r"名称[：:]\s*(\S{2,30}(?:公司|有限公司|店|餐厅|酒店))", raw_text)
+        if sm: seller = sm.group(1)
+        buyer = None
+        bm = _re.search(r"购买方[：:]\s*名称[：:]\s*(\S+)", raw_text)
+        if bm: buyer = bm.group(1)
+
+        # Item name
+        item = None
+        im2 = _re.search(r"项目名称[：:]\s*(\S+)", raw_text)
+        if im2: item = im2.group(1)
+
+        invoice = Invoice(
+            trip_id=ocr_result.trip_id, document_id=ocr_result.document_id,
+            ocr_result_id=ocr_result.id,
+            invoice_type="GENERAL_INVOICE", expense_category=classification.expense_category,
+            total_amount=amount, amount_without_tax=amount_without_tax,
+            tax_amount=tax_amount, invoice_date=inv_date,
+            invoice_number=inv_no, seller_name=seller, buyer_name=buyer,
+            item_name=item,
+            document_role="OFFICIAL_INVOICE", include_in_summary=True,
+            confidence=classification.confidence, parser_name="GeneralInvoiceParser",
+            review_status=ReviewStatus.AUTO_CONFIRMED,
+            reimbursement_status=ReimbursementStatus.THIS_TRIP,
+        )
+        db.add(invoice)
+        db.commit()
+        db.refresh(invoice)
+        return invoice
+
+    @staticmethod
     def _create_refund_ticket(db: Session, ocr_result: OCRResult, raw_text: str, classification) -> Invoice:
         """Create a refund ticket – extract flight info from remarks for reference only."""
         import re as _re
@@ -613,10 +703,43 @@ class ExtractionService:
         # ── Match flight orders with invoices ──
         ExtractionService._match_flight_orders(db, trip_id)
 
+        # ── Deduplicate by same amount + category + date ──
+        invoices = ExtractionService._deduplicate_by_amount_date(db, invoices)
+
         # ── Deduplicate: same train/flight + date + amount → keep PDF over image ──
         invoices = ExtractionService._deduplicate_invoices(db, invoices)
 
         return invoices
+
+    @staticmethod
+    def _deduplicate_by_amount_date(db: Session, invoices: list[Invoice]) -> list[Invoice]:
+        """Remove duplicates: same amount + same category + same date = duplicate."""
+        from models.document import Document
+        seen: dict[tuple, Invoice] = {}
+        to_remove: list[Invoice] = []
+        for inv in invoices:
+            if not inv.total_amount:
+                continue
+            key = (str(inv.total_amount), inv.expense_category, str(inv.invoice_date or ""))
+            if key in seen:
+                existing = seen[key]
+                # Prefer PDF over image, prefer the one with more data
+                existing_doc = db.query(Document).filter(Document.id == existing.document_id).first()
+                current_doc = db.query(Document).filter(Document.id == inv.document_id).first()
+                existing_is_pdf = existing_doc and existing_doc.file_ext == ".pdf"
+                current_is_pdf = current_doc and current_doc.file_ext == ".pdf"
+                if current_is_pdf and not existing_is_pdf:
+                    to_remove.append(existing)
+                    seen[key] = inv
+                else:
+                    to_remove.append(inv)
+            else:
+                seen[key] = inv
+        for inv in to_remove:
+            db.delete(inv)
+        if to_remove:
+            db.commit()
+        return [inv for inv in invoices if inv not in to_remove]
 
     @staticmethod
     def _deduplicate_invoices(db: Session, invoices: list[Invoice]) -> list[Invoice]:

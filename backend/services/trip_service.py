@@ -14,7 +14,8 @@ class TripService:
     @staticmethod
     def create_trip(db: Session, title: str, folder_path: str,
                     traveler_name: str | None = None,
-                    company_name: str | None = None) -> Trip:
+                    company_name: str | None = None,
+                    project_type: str = "TRAVEL") -> Trip:
         """Create a new trip from a folder path."""
         folder_name = os.path.basename(folder_path.rstrip("/\\")) if folder_path else ""
 
@@ -32,6 +33,7 @@ class TripService:
             confirmed_start_date=folder_start,
             confirmed_end_date=folder_end,
             trip_days=(folder_end - folder_start).days + 1 if folder_start and folder_end else None,
+            project_type=project_type,
             status=TripStatus.CREATED,
         )
         db.add(trip)

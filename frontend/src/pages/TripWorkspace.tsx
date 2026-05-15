@@ -15,7 +15,7 @@ import {
 
 const LS_KEY = "currentTripId";
 
-type FilterKey = "all" | "invoice" | "supporting" | "included" | "excluded" | "hasIssue" | "lodging" | "transport" | "refund";
+type FilterKey = "all" | "invoice" | "supporting" | "hasIssue" | "lodging" | "transport" | "refund" | "meal" | "express" | "office" | "digital" | "daily";
 
 export default function TripWorkspace() {
   const { tripId: paramId } = useParams<{ tripId?: string }>();
@@ -131,16 +131,21 @@ export default function TripWorkspace() {
 
   // ── Filters ──
   const filteredDocs = useMemo(() => {
-    if (filterKey === "all") return docs;
-    if (filterKey === "invoice") return docs.filter(d => d.total_amount != null);
-    if (filterKey === "supporting") return docs.filter(d => !d.total_amount && d.order_total_amount);
-    if (filterKey === "included") return docs.filter(d => d.total_amount != null);
-    if (filterKey === "excluded") return docs.filter(d => !d.total_amount);
-    if (filterKey === "hasIssue") return docs.filter(d => d.issue_count > 0);
-    if (filterKey === "lodging") return docs.filter(d => d.expense_category === "LODGING");
-    if (filterKey === "transport") return docs.filter(d => d.expense_category === "INTERCITY_TRANSPORT");
-    if (filterKey === "refund") return docs.filter(d => d.expense_category === "REFUND_CHANGE_FEE");
-    return docs;
+    switch (filterKey) {
+      case "all": return docs;
+      case "invoice": return docs.filter(d => d.total_amount != null);
+      case "supporting": return docs.filter(d => !d.total_amount);
+      case "hasIssue": return docs.filter(d => d.issue_count > 0);
+      case "lodging": return docs.filter(d => d.expense_category === "LODGING");
+      case "transport": return docs.filter(d => d.expense_category === "INTERCITY_TRANSPORT");
+      case "refund": return docs.filter(d => d.expense_category === "REFUND_CHANGE_FEE");
+      case "meal": return docs.filter(d => d.expense_category === "MEAL");
+      case "express": return docs.filter(d => d.expense_category === "EXPRESS_LOGISTICS");
+      case "office": return docs.filter(d => d.expense_category === "OFFICE_SUPPLIES");
+      case "digital": return docs.filter(d => d.expense_category === "ELECTRONICS_DIGITAL");
+      case "daily": return docs.filter(d => d.expense_category === "DAILY_GENERAL");
+      default: return docs;
+    }
   }, [docs, filterKey]);
 
   const displayIssues = issueFilterDocId ? issues.filter(i => i.document_id === issueFilterDocId) : issues;
@@ -156,7 +161,7 @@ export default function TripWorkspace() {
     { label: "餐饮费", value: summary.meal_amount, color: "#e86060" },
     { label: "退票/改签费", value: summary.refund_change_fee || 0, color: "#b0b0b0" },
     { label: "其他", value: summary.other_amount, color: "#a080d0" },
-    { label: "差旅补助", value: summary.allowance_amount, color: "#8090a0" },
+    ...(trip?.project_type !== "DAILY" ? [{ label: "差旅补助", value: summary.allowance_amount, color: "#8090a0" }] : []),
   ].filter(c => c.value > 0) : [];
   const maxBar = Math.max(...expenseBars.map(c => c.value), 1);
 
@@ -194,7 +199,7 @@ export default function TripWorkspace() {
                 onFocus={e => e.target.style.borderBottomColor = '#1565c0'}
               />
               <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
-                {trip.project_type === "DAILY" ? "日常发票" : trip.project_type === "MIXED" ? "综合项目" : "出差报销"}
+                {(trip.project_type || "TRAVEL") === "DAILY" ? "日常发票" : (trip.project_type || "TRAVEL") === "MIXED" ? "综合项目" : "出差报销"}
                 {(trip.confirmed_start_date || trip.folder_date_start) && ` · ${trip.confirmed_start_date || trip.folder_date_start} 至 ${trip.confirmed_end_date || trip.folder_date_end}`}
                 {trip.trip_days != null && ` · ${trip.trip_days} 天`}
               </div>
@@ -202,13 +207,24 @@ export default function TripWorkspace() {
                 路径：{trip.folder_path}
               </div>
             </div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               <Tag color="#1565c0" bg="#e3f2fd">{tripStatusLabels[trip.status] || trip.status}</Tag>
-              <Tag color={trip.reimbursement_status === "REIMBURSED" ? "#2e7d32" : "#e65100"} bg={trip.reimbursement_status === "REIMBURSED" ? "#e8f5e9" : "#fff3e0"}>
-                {reimbursementLabels[trip.reimbursement_status || "NOT_REIMBURSED"]}
-              </Tag>
-              {stats.issues > 0 && <Tag color="#c62828" bg="#ffebee">⚠ {stats.issues} 个异常</Tag>}
-              {stats.issues === 0 && trip.status === "ANALYZED" && <Tag color="#2e7d32" bg="#e8f5e9">✓ 无异常</Tag>}
+              <select
+                value={trip.project_type || "TRAVEL"}
+                onChange={async e => { if (!tripId) return; const u = await updateTrip(tripId, { project_type: e.target.value }); setTrip(u); await loadWorkspace(); }}
+                style={{ padding: "2px 6px", borderRadius: 6, fontSize: 11, border: "1px solid #ddd", background: "#fff", cursor: "pointer", width: 100 }}>
+                <option value="TRAVEL">出差报销</option>
+                <option value="DAILY">日常发票</option>
+                <option value="MIXED">综合</option>
+              </select>
+              <select
+                value={trip.reimbursement_status || "NOT_REIMBURSED"}
+                onChange={async e => { if (!tripId) return; const u = await updateTrip(tripId, { reimbursement_status: e.target.value }); setTrip(u); }}
+                style={{ padding: "2px 6px", borderRadius: 6, fontSize: 11, border: "1px solid #ddd", background: "#fff", cursor: "pointer", width: 90, color: trip.reimbursement_status === "REIMBURSED" ? "#2e7d32" : "#e65100" }}>
+                {Object.entries(reimbursementLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+              {trip.status === "ANALYZED" && stats.issues > 0 && <Tag color="#c62828" bg="#ffebee">⚠ {stats.issues} 个异常</Tag>}
+              {trip.status === "ANALYZED" && stats.issues === 0 && <Tag color="#2e7d32" bg="#e8f5e9">✓ 无异常</Tag>}
             </div>
           </div>
         </div>
@@ -243,9 +259,11 @@ export default function TripWorkspace() {
           <Stat label="文件总数" value={stats.total_files} />
           <Stat label="识别成功" value={stats.recognized} />
           <Stat label="待复核" value={stats.review_count} />
-          <Stat label="异常" value={stats.issues} warn={stats.issues > 0} />
+          <Stat label="异常" value={trip?.status === "ANALYZED" ? stats.issues : "-"} warn={stats.issues > 0 && trip?.status === "ANALYZED"} />
           <Stat label="票据合计" value={summary ? formatMoney(summary.invoice_total_amount) : "-"} />
-          <Stat label="含补助总计" value={summary ? formatMoney(summary.grand_total_amount) : "-"} accent />
+          {trip?.project_type !== "DAILY" && (
+            <Stat label="含补助总计" value={summary ? formatMoney(summary.grand_total_amount) : "-"} accent />
+          )}
         </div>
       )}
 
@@ -276,9 +294,11 @@ export default function TripWorkspace() {
               <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 13, fontWeight: 700, borderTop: "2px solid #e0e0e0", marginTop: 4 }}>
                 <span>票据合计</span><span>{formatMoney(summary.invoice_total_amount)}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: 14, fontWeight: 700, color: "#1565c0" }}>
-                <span>含补助总计</span><span>{formatMoney(summary.grand_total_amount)}</span>
-              </div>
+              {trip?.project_type !== "DAILY" && (
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: 14, fontWeight: 700, color: "#1565c0" }}>
+                  <span>含补助总计</span><span>{formatMoney(summary.grand_total_amount)}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -312,8 +332,8 @@ export default function TripWorkspace() {
             <span>📄 文件列表 ({filteredDocs.length}/{docs.length})</span>
             <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
               {[
-                ["all","全部"],["invoice","正式发票"],["supporting","辅助凭证"],["included","已计入"],["excluded","未计入"],
-                ["hasIssue","有异常"],["lodging","住宿费"],["transport","城际交通"],["refund","退改签"]
+                ["all","全部"],["invoice","正式发票"],["supporting","辅助凭证"],
+                ["hasIssue","有异常"],["meal","餐饮"],["express","快递"],["office","办公"],["digital","电子"],["daily","日常"]
               ].map(([k,v]) => (
                 <button key={k} onClick={() => setFilterKey(k as FilterKey)}
                   style={{ padding: "2px 8px", border: "none", borderRadius: 10, cursor: "pointer", fontSize: 11, background: filterKey === k ? "#1565c0" : "#f0f0f0", color: filterKey === k ? "#fff" : "#666" }}>{v}</button>
@@ -339,7 +359,7 @@ export default function TripWorkspace() {
                   </td>
                   <td style={{ padding: "4px 8px", textAlign: "center" }}>
                     <Tag color={d.total_amount ? "#2e7d32" : "#888"} bg={d.total_amount ? "#e8f5e9" : "#f5f5f5"} small>
-                      {d.total_amount ? "正式发票" : d.order_total_amount ? "订单截图" : "辅助凭证"}
+                      {d.total_amount ? "正式发票" : d.order_total_amount ? "订单截图" : "已去重"}
                     </Tag>
                   </td>
                   <td style={{ padding: "4px 8px", textAlign: "center", fontSize: 12 }}>{d.invoice_type ? (invoiceTypeLabels[d.invoice_type] || d.invoice_type) : "-"}</td>

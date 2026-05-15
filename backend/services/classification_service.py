@@ -195,10 +195,16 @@ def _classify_by_keywords(text: str) -> ClassificationResult:
             reason=f"匹配酒店关键词 {hotel_hits} 个" + ("，含强特征'住宿服务'" if has_strong_hotel else ""),
         )
 
-    # Check train – must have strong train signals
+    # ── General invoice FIRST – catch office supplies, electronics etc before train/flight ──
+    general_result = _classify_general_invoice(text)
+    if general_result and general_result.confidence >= 0.7:
+        return general_result
+
+    # Check train – MUST have train number AND station
     train_hits = sum(1 for kw in TRAIN_KEYWORDS if kw in text)
     has_train_no = bool(TRAIN_NO_PATTERN.search(text))
-    if train_hits >= 2 and has_train_no:
+    has_station = bool(re.search(r"[\u4e00-\u9fff]{2,4}站", text))
+    if train_hits >= 2 and has_train_no and has_station:
         return ClassificationResult(
             invoice_type=InvoiceType.TRAIN_TICKET,
             expense_category=ExpenseCategory.INTERCITY_TRANSPORT,
@@ -206,9 +212,10 @@ def _classify_by_keywords(text: str) -> ClassificationResult:
             reason=f"匹配高铁/火车关键词 {train_hits} 个",
         )
 
-    # Check flight
+    # Check flight – MUST have flight number
+    has_flight_no = bool(FLIGHT_NO_PATTERN.search(text))
     flight_hits = sum(1 for kw in FLIGHT_KEYWORDS if kw in text)
-    if flight_hits >= 2:
+    if flight_hits >= 2 and has_flight_no:
         return ClassificationResult(
             invoice_type=InvoiceType.FLIGHT_TICKET,
             expense_category=ExpenseCategory.INTERCITY_TRANSPORT,
@@ -270,3 +277,47 @@ def _classify_by_patterns(text: str) -> ClassificationResult:
         confidence=0.0,
         reason="无正则匹配",
     )
+
+
+# ── General invoice classification ─────────────────────────────────
+
+GENERAL_INVOICE_RULES = [
+    (["顺丰", "SF Express", "快递", "速运", "物流", "运费", "寄递服务", "收派服务", "快递服务", "物流辅助服务", "顺丰速运"],
+     ExpenseCategory.EXPRESS_LOGISTICS, "快递物流"),
+    (["餐饮", "餐费", "饭店", "餐厅", "外卖", "食品", "饮品", "中餐", "西餐", "火锅", "烧烤", "料理"],
+     ExpenseCategory.MEAL, "餐饮费"),
+    (["京东", "淘宝", "天猫", "拼多多", "苏宁", "国美"],
+     ExpenseCategory.DAILY_GENERAL, "日常费用"),
+    (["插座", "插排", "接线板", "排插", "拖线板", "电源插座", "总控开关",
+      "DELIXI", "德力西", "公牛", "绿联", "充电器", "电源线", "转换器",
+      "办公耗材", "电子配件", "电控"],
+     ExpenseCategory.OFFICE_SUPPLIES, "办公用品"),
+    (["电脑", "笔记本", "显示器", "手机", "平板", "打印机", "扫描仪",
+      "硬盘", "内存", "键盘", "鼠标", "路由器", "交换机", "服务器",
+      "电子产品", "数码产品", "办公设备", "摄像头", "投影仪"],
+     ExpenseCategory.ELECTRONICS_DIGITAL, "电子数码"),
+    (["办公用品", "文具", "纸张", "硒鼓", "墨盒", "文件夹", "档案盒",
+      "笔", "本子", "订书机", "耗材"],
+     ExpenseCategory.OFFICE_SUPPLIES, "办公用品"),
+    (["软件", "软件服务", "SaaS", "云服务", "信息技术服务", "技术服务",
+      "域名", "会员", "订阅", "API", "数据服务", "平台服务"],
+     ExpenseCategory.SOFTWARE_SERVICE, "软件服务"),
+    (["通信费", "电话费", "宽带费", "流量费", "移动", "联通", "电信", "互联网接入"],
+     ExpenseCategory.COMMUNICATION, "通信费"),
+    (["服务费", "服务", "咨询", "培训", "维修", "印刷", "制作"],
+     ExpenseCategory.GENERAL_SERVICE, "普通服务费"),
+]
+
+
+def _classify_general_invoice(text: str) -> ClassificationResult | None:
+    """Try to classify a general (non-travel) invoice by item name."""
+    for keywords, category, label in GENERAL_INVOICE_RULES:
+        hits = sum(1 for kw in keywords if kw in text)
+        if hits >= 1:
+            return ClassificationResult(
+                invoice_type="GENERAL_INVOICE",
+                expense_category=category,
+                confidence=min(0.95, 0.85 + hits * 0.03),
+                reason=f"匹配{label}关键词 {hits} 个",
+            )
+    return None

@@ -70,7 +70,11 @@ class ExpenseSummary:
         ) or 0
 
         daily_allowance = trip.daily_allowance or Decimal("180.00")
-        allowance_amount = Decimal(str(trip_days)) * daily_allowance
+        # DAILY projects don't get travel allowance
+        if trip.project_type == "DAILY":
+            allowance_amount = Decimal("0.00")
+        else:
+            allowance_amount = Decimal(str(trip_days)) * daily_allowance
         grand_total = invoice_total + allowance_amount
 
         return {

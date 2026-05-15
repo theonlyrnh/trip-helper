@@ -78,6 +78,7 @@ def create_trip(data: TripCreateRequest, db: Session = Depends(get_db)):
         folder_path=data.folder_path,
         traveler_name=data.traveler_name,
         company_name=data.company_name,
+        project_type=data.project_type or "TRAVEL",
     )
     return trip
 

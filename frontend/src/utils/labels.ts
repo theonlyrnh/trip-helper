@@ -62,7 +62,15 @@ export const invoiceTypeLabels: Record<string, string> = {
   VAT_INVOICE: "增值税发票",
   QUOTA_INVOICE: "定额发票",
   BUS_TICKET: "汽车票",
+  EXPRESS_LOGISTICS: "快递物流",
+  OFFICE_SUPPLIES: "办公用品",
+  ELECTRONICS_DIGITAL: "电子数码",
+  SOFTWARE_SERVICE: "软件服务",
+  COMMUNICATION: "通信费",
+  GENERAL_SERVICE: "普通服务费",
+  DAILY_GENERAL: "日常费用",
   OTHER: "其他",
+  GENERAL_INVOICE: "普通发票",
   UNKNOWN: "未知类型",
 };
 
@@ -93,6 +101,13 @@ export const expenseCategoryLabels: Record<string, string> = {
   LODGING: "住宿费",
   MEAL: "餐饮费",
   REFUND_CHANGE_FEE: "退票/改签费",
+  EXPRESS_LOGISTICS: "快递物流",
+  OFFICE_SUPPLIES: "办公用品",
+  ELECTRONICS_DIGITAL: "电子数码",
+  SOFTWARE_SERVICE: "软件服务",
+  COMMUNICATION: "通信费",
+  GENERAL_SERVICE: "普通服务费",
+  DAILY_GENERAL: "日常费用",
   OTHER: "其他",
 };
 
