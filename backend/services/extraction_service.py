@@ -703,43 +703,10 @@ class ExtractionService:
         # ── Match flight orders with invoices ──
         ExtractionService._match_flight_orders(db, trip_id)
 
-        # ── Deduplicate by same amount + category + date ──
-        invoices = ExtractionService._deduplicate_by_amount_date(db, invoices)
-
         # ── Deduplicate: same train/flight + date + amount → keep PDF over image ──
         invoices = ExtractionService._deduplicate_invoices(db, invoices)
 
         return invoices
-
-    @staticmethod
-    def _deduplicate_by_amount_date(db: Session, invoices: list[Invoice]) -> list[Invoice]:
-        """Remove duplicates: same amount + same category + same date = duplicate."""
-        from models.document import Document
-        seen: dict[tuple, Invoice] = {}
-        to_remove: list[Invoice] = []
-        for inv in invoices:
-            if not inv.total_amount:
-                continue
-            key = (str(inv.total_amount), inv.expense_category, str(inv.invoice_date or ""))
-            if key in seen:
-                existing = seen[key]
-                # Prefer PDF over image, prefer the one with more data
-                existing_doc = db.query(Document).filter(Document.id == existing.document_id).first()
-                current_doc = db.query(Document).filter(Document.id == inv.document_id).first()
-                existing_is_pdf = existing_doc and existing_doc.file_ext == ".pdf"
-                current_is_pdf = current_doc and current_doc.file_ext == ".pdf"
-                if current_is_pdf and not existing_is_pdf:
-                    to_remove.append(existing)
-                    seen[key] = inv
-                else:
-                    to_remove.append(inv)
-            else:
-                seen[key] = inv
-        for inv in to_remove:
-            db.delete(inv)
-        if to_remove:
-            db.commit()
-        return [inv for inv in invoices if inv not in to_remove]
 
     @staticmethod
     def _deduplicate_invoices(db: Session, invoices: list[Invoice]) -> list[Invoice]:

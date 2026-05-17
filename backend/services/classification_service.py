@@ -25,6 +25,9 @@ FLIGHT_KEYWORDS = [
     "电子客票行程单", "航空运输电子客票", "航班号", "客票号",
     "乘机人", "起飞", "到达", "机场建设费", "燃油附加费",
     "民航发展基金", "登机", "值机",
+    "代订机票费", "代订机票", "机票费", "航空服务",
+    "经纪代理服务*代订机票", "旅游服务*代订机票",
+    "商旅服务*机票", "机票代理服务",
 ]
 
 HOTEL_KEYWORDS = [
@@ -195,11 +198,6 @@ def _classify_by_keywords(text: str) -> ClassificationResult:
             reason=f"匹配酒店关键词 {hotel_hits} 个" + ("，含强特征'住宿服务'" if has_strong_hotel else ""),
         )
 
-    # ── General invoice FIRST – catch office supplies, electronics etc before train/flight ──
-    general_result = _classify_general_invoice(text)
-    if general_result and general_result.confidence >= 0.7:
-        return general_result
-
     # Check train – MUST have train number AND station
     train_hits = sum(1 for kw in TRAIN_KEYWORDS if kw in text)
     has_train_no = bool(TRAIN_NO_PATTERN.search(text))
@@ -212,10 +210,10 @@ def _classify_by_keywords(text: str) -> ClassificationResult:
             reason=f"匹配高铁/火车关键词 {train_hits} 个",
         )
 
-    # Check flight – MUST have flight number
-    has_flight_no = bool(FLIGHT_NO_PATTERN.search(text))
+    # Check flight – MUST have flight number, then 1 keyword is enough
     flight_hits = sum(1 for kw in FLIGHT_KEYWORDS if kw in text)
-    if flight_hits >= 2 and has_flight_no:
+    has_flight_no = bool(FLIGHT_NO_PATTERN.search(text))
+    if has_flight_no and flight_hits >= 1:
         return ClassificationResult(
             invoice_type=InvoiceType.FLIGHT_TICKET,
             expense_category=ExpenseCategory.INTERCITY_TRANSPORT,
@@ -242,6 +240,11 @@ def _classify_by_keywords(text: str) -> ClassificationResult:
             confidence=min(0.95, 0.7 + meal_hits * 0.05),
             reason=f"匹配餐饮关键词 {meal_hits} 个",
         )
+
+    # ── General invoice – LAST resort after all travel checks ──
+    general_result = _classify_general_invoice(text)
+    if general_result and general_result.confidence >= 0.85:
+        return general_result
 
     return ClassificationResult(
         invoice_type=InvoiceType.UNKNOWN,

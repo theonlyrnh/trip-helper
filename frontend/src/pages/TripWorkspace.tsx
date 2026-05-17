@@ -160,6 +160,7 @@ export default function TripWorkspace() {
     { label: "住宿费", value: summary.lodging_amount, color: "#f0a050" },
     { label: "餐饮费", value: summary.meal_amount, color: "#e86060" },
     { label: "退票/改签费", value: summary.refund_change_fee || 0, color: "#b0b0b0" },
+    { label: "出行保险", value: summary.travel_insurance_amount || 0, color: "#f0a050" },
     { label: "其他", value: summary.other_amount, color: "#a080d0" },
     ...(trip?.project_type !== "DAILY" ? [{ label: "差旅补助", value: summary.allowance_amount, color: "#8090a0" }] : []),
   ].filter(c => c.value > 0) : [];
