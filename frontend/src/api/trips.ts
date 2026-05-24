@@ -1,4 +1,4 @@
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${url}`, {
@@ -10,6 +10,26 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
     throw new Error(`HTTP ${res.status}: ${text}`);
   }
   return res.json();
+}
+
+async function downloadRequest(url: string, fallbackFilename: string, options?: RequestInit): Promise<void> {
+  const res = await fetch(`${API_BASE}${url}`, options);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get("content-disposition") || "";
+  const filenameMatch = disposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
+  const filename = filenameMatch ? decodeURIComponent(filenameMatch[1] || filenameMatch[2]) : fallbackFilename;
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = objectUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(objectUrl);
 }
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -99,6 +119,9 @@ export interface IssueData {
   suggestion: string | null;
   auto_generated: boolean;
   resolved: boolean;
+  resolution_status: string;
+  resolution_note: string | null;
+  resolved_at: string | null;
   // Joined from Document
   file_name: string | null;
   file_path: string | null;
@@ -198,10 +221,12 @@ export async function getTripIssues(tripId: number): Promise<IssueData[]> {
   return request(`/api/trips/${tripId}/issues`);
 }
 
-export async function exportExcel(
-  tripId: number
-): Promise<{ trip_id: number; format: string; file_path: string; message: string }> {
-  return request(`/api/trips/${tripId}/export/excel`, { method: "POST" });
+export async function exportExcel(tripId: number): Promise<void> {
+  return downloadRequest(`/api/trips/${tripId}/export/excel`, `trip_${tripId}.xlsx`, { method: "POST" });
+}
+
+export async function exportPdf(tripId: number): Promise<void> {
+  return downloadRequest(`/api/trips/${tripId}/export/pdf`, `trip_${tripId}.pdf`, { method: "POST" });
 }
 
 export interface WorkspaceData {
@@ -223,12 +248,63 @@ export interface WorkspaceDoc {
   scan_status: string;
   ocr_status: string;
   invoice_id: number | null;
+  document_role: string | null;
+  include_in_summary: boolean;
+  reimbursement_status: string | null;
+  confirmed_amount: number | null;
+  review_status: string | null;
+  note: string | null;
+  confidence: number | null;
+  parser_name: string | null;
+  invoice_number: string | null;
+  invoice_date: string | null;
+  business_date: string | null;
+  seller_name: string | null;
+  buyer_name: string | null;
   invoice_type: string | null;
   expense_category: string | null;
   total_amount: number | null;
   order_total_amount: number | null;
+  from_city: string | null;
+  to_city: string | null;
+  from_place: string | null;
+  to_place: string | null;
+  transport_no: string | null;
+  depart_time_str: string | null;
+  seat_class: string | null;
+  hotel_name: string | null;
+  checkin_date: string | null;
+  checkout_date: string | null;
   nights: number | null;
   issue_count: number;
+}
+
+export interface InvoiceUpdatePayload {
+  reimbursement_status?: string;
+  include_in_summary?: boolean;
+  confirmed_amount?: number | null;
+  review_status?: string;
+  note?: string | null;
+  expense_category?: string;
+  invoice_type?: string;
+  invoice_number?: string | null;
+  invoice_date?: string | null;
+  business_date?: string | null;
+  seller_name?: string | null;
+  buyer_name?: string | null;
+  total_amount?: number | null;
+  from_city?: string | null;
+  to_city?: string | null;
+  from_place?: string | null;
+  to_place?: string | null;
+  transport_no?: string | null;
+  depart_time_str?: string | null;
+  seat_class?: string | null;
+  hotel_name?: string | null;
+  checkin_date?: string | null;
+  checkout_date?: string | null;
+  nights?: number | null;
+  document_role?: string;
 }
 
 export interface RouteSegment {
@@ -246,6 +322,34 @@ export interface RouteSegment {
 
 export async function getWorkspace(tripId: number): Promise<WorkspaceData> {
   return request(`/api/trips/${tripId}/workspace`);
+}
+
+export async function updateInvoice(invoiceId: number, payload: InvoiceUpdatePayload): Promise<WorkspaceDoc> {
+  return request(`/api/invoices/${invoiceId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function bulkUpdateInvoices(
+  tripId: number,
+  invoiceIds: number[],
+  updates: InvoiceUpdatePayload,
+): Promise<WorkspaceDoc[]> {
+  return request(`/api/trips/${tripId}/invoices/bulk-update`, {
+    method: "POST",
+    body: JSON.stringify({ invoice_ids: invoiceIds, updates }),
+  });
+}
+
+export async function updateIssue(
+  issueId: number,
+  payload: { resolved?: boolean; ignored?: boolean; resolution_note?: string },
+): Promise<IssueData> {
+  return request(`/api/issues/${issueId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function getRecentTrip(): Promise<TripData> {

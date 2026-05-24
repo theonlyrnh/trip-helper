@@ -136,6 +136,13 @@ export const reimbursementLabels: Record<string, string> = {
   NOT_REQUIRED: "无需报销",
 };
 
+export const invoiceReimbursementLabels: Record<string, string> = {
+  THIS_TRIP: "本次报销",
+  ALREADY_REIMBURSED: "已报销",
+  NOT_REIMBURSED: "暂不报销",
+  PENDING: "待确认",
+};
+
 /** Format a number as currency: ¥1,234.56 */
 export function formatMoney(value: number | null | undefined): string {
   if (value == null || isNaN(value)) return "待确认";
