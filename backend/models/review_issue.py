@@ -32,6 +32,10 @@ class ReviewIssue(Base):
 
     auto_generated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     resolved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    resolution_status: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="OPEN"
+    )
+    resolution_note: Mapped[str | None] = mapped_column(String(2000), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False

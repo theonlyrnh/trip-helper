@@ -16,10 +16,13 @@ class IssueDetector:
         """Run all detection rules and return created issues."""
         issues: list[ReviewIssue] = []
 
-        # Clear previous auto-generated issues
+        # Clear previous unresolved auto-generated issues.
+        # Keep resolved/ignored records so manual handling is not lost when
+        # the user edits an invoice and triggers re-detection.
         db.query(ReviewIssue).filter(
             ReviewIssue.trip_id == trip.id,
             ReviewIssue.auto_generated == True,
+            ReviewIssue.resolved == False,
         ).delete()
         db.commit()
 
@@ -39,14 +42,37 @@ class IssueDetector:
 
         # Save all issues
         for issue in issues:
+            if IssueDetector._has_handled_same_issue(db, issue):
+                continue
             db.add(issue)
         db.commit()
 
         # Update trip issue count (only unresolved)
-        trip.issue_count = sum(1 for i in issues if not i.resolved)
+        trip.issue_count = (
+            db.query(ReviewIssue)
+            .filter(ReviewIssue.trip_id == trip.id, ReviewIssue.resolved == False)
+            .count()
+        )
         db.commit()
 
         return issues
+
+    @staticmethod
+    def _has_handled_same_issue(db: Session, issue: ReviewIssue) -> bool:
+        """Return true when the same auto issue was manually resolved/ignored."""
+        return (
+            db.query(ReviewIssue)
+            .filter(
+                ReviewIssue.trip_id == issue.trip_id,
+                ReviewIssue.issue_type == issue.issue_type,
+                ReviewIssue.document_id == issue.document_id,
+                ReviewIssue.invoice_id == issue.invoice_id,
+                ReviewIssue.auto_generated == True,
+                ReviewIssue.resolved == True,
+            )
+            .first()
+            is not None
+        )
 
     @staticmethod
     def _check_invoice(

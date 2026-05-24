@@ -188,6 +188,9 @@ class IssueResponse(BaseModel):
     suggestion: Optional[str] = None
     auto_generated: bool
     resolved: bool
+    resolution_status: str = "OPEN"
+    resolution_note: Optional[str] = None
+    resolved_at: Optional[datetime] = None
     # Joined fields from Document
     file_name: Optional[str] = None
     file_path: Optional[str] = None
@@ -252,15 +255,24 @@ def get_workspace(trip_id: int, db: Session = Depends(get_db)):
     from models.ocr_result import OCRResult
     from models.review_issue import ReviewIssue
 
+    # Issues with joins. Detection updates trip.issue_count and must run before
+    # stats are assembled, otherwise the workspace can show a stale issue count.
+    issues = get_trip_issues(trip_id, db)
+    db.refresh(trip)
+
     doc_count = db.query(Document).filter(Document.trip_id == trip_id).count()
     rec_count = db.query(OCRResult).filter(
         OCRResult.trip_id == trip_id, OCRResult.success == True
+    ).count()
+    unresolved_issue_count = db.query(ReviewIssue).filter(
+        ReviewIssue.trip_id == trip_id,
+        ReviewIssue.resolved == False,
     ).count()
     stats = {
         "total_files": doc_count,
         "recognized": rec_count,
         "review_count": trip.review_count or 0,
-        "issues": trip.issue_count or 0,
+        "issues": unresolved_issue_count,
     }
 
     # Summary
@@ -286,16 +298,36 @@ def get_workspace(trip_id: int, db: Session = Depends(get_db)):
             "scan_status": d.scan_status,
             "ocr_status": d.ocr_status,
             "invoice_id": inv.id if inv else None,
+            "document_role": inv.document_role if inv else None,
+            "include_in_summary": bool(inv.include_in_summary) if inv else False,
+            "reimbursement_status": inv.reimbursement_status if inv else None,
+            "confirmed_amount": float(inv.confirmed_amount) if inv and inv.confirmed_amount is not None else None,
+            "review_status": inv.review_status if inv else None,
+            "note": inv.note if inv else None,
+            "confidence": float(inv.confidence) if inv else None,
+            "parser_name": inv.parser_name if inv else None,
+            "invoice_number": inv.invoice_number if inv else None,
+            "invoice_date": str(inv.invoice_date) if inv and inv.invoice_date else None,
+            "business_date": str(inv.business_date) if inv and inv.business_date else None,
+            "seller_name": inv.seller_name if inv else None,
+            "buyer_name": inv.buyer_name if inv else None,
             "invoice_type": inv.invoice_type if inv else None,
             "expense_category": inv.expense_category if inv else None,
             "total_amount": float(inv.total_amount) if inv and inv.total_amount else None,
             "order_total_amount": float(inv.order_total_amount) if inv and inv.order_total_amount else None,
+            "from_city": inv.from_city if inv else None,
+            "to_city": inv.to_city if inv else None,
+            "from_place": inv.from_place if inv else None,
+            "to_place": inv.to_place if inv else None,
+            "transport_no": inv.transport_no if inv else None,
+            "depart_time_str": inv.depart_time_str if inv else None,
+            "seat_class": inv.seat_class if inv else None,
+            "hotel_name": inv.hotel_name if inv else None,
+            "checkin_date": str(inv.checkin_date) if inv and inv.checkin_date else None,
+            "checkout_date": str(inv.checkout_date) if inv and inv.checkout_date else None,
             "nights": inv.nights if inv else None,
             "issue_count": doc_issues,
         })
-
-    # Issues with joins
-    issues = get_trip_issues(trip_id, db)
 
     # Route segments – sorted by date then time
     from models.travel_segment import TravelSegment

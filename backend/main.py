@@ -13,6 +13,8 @@ from routers.analysis import router as analysis_router
 from routers.exports import router as exports_router
 from routers.system import router as system_router
 from routers.dashboard import router as dashboard_router
+from routers.invoices import router as invoices_router
+from routers.issues import router as issues_router
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -38,6 +40,8 @@ app.include_router(analysis_router)
 app.include_router(exports_router)
 app.include_router(system_router)
 app.include_router(dashboard_router)
+app.include_router(invoices_router)
+app.include_router(issues_router)
 
 
 @app.on_event("startup")

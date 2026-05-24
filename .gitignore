@@ -30,3 +30,6 @@ ACCEPTANCE.md
 
 # Test data
 fapiao/
+
+# Local pytest temporary directory
+.pytest-tmp/

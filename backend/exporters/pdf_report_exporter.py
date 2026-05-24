@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from models.trip import Trip
 from config import settings
+from exporters.excel_exporter import ExcelExporter
 
 
 class PDFReportExporter:
@@ -21,7 +22,7 @@ class PDFReportExporter:
         """Generate PDF report and return the file path."""
         os.makedirs(settings.EXPORT_DIR, exist_ok=True)
 
-        filename = f"trip_{trip.id}_{trip.title}.pdf"
+        filename = ExcelExporter.safe_filename(f"trip_{trip.id}_{trip.title}.pdf")
         filepath = os.path.join(settings.EXPORT_DIR, filename)
 
         doc = SimpleDocTemplate(filepath, pagesize=A4)
