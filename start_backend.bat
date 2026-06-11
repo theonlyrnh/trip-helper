@@ -24,6 +24,12 @@ if defined PYTHON (
     exit /b 0
   )
 )
+REM Use conda fapiao env as first choice for this project
+set "CONDA_PYTHON=D:\ProgramData\anaconda3\envs\fapiao\python.exe"
+if exist "%CONDA_PYTHON%" (
+  set "PYTHON_CMD=%CONDA_PYTHON%"
+  exit /b 0
+)
 python --version >nul 2>nul
 if not errorlevel 1 (
   set "PYTHON_CMD=python"
