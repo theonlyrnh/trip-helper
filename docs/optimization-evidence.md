@@ -86,6 +86,7 @@ identifiers, and residual risks below this section.
 33950fa checkpoint(opt): backend-contracts
 7e7e7e7 checkpoint(opt): release-readiness
 5570628 checkpoint(opt): workspace-polish
+2f9e7dd checkpoint(opt): lifecycle-contracts
 ```
 
 These are local commits only. The original baseline archive remains outside
