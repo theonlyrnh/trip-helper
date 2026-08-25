@@ -1,0 +1,37 @@
+# Imported by the VPS Caddyfile. `setup-caddy.sh` replaces APP_DOMAIN and
+# WEB_ROOT while keeping every existing Caddy site untouched.
+
+APP_DOMAIN {
+    encode zstd gzip
+
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "same-origin"
+    }
+
+    # API uploads and job updates are streamed to the A100 over the configured
+    # private backhaul. Caddy does not write request bodies to VPS storage.
+    @api path /api/*
+    handle @api {
+        reverse_proxy API_UPSTREAM {
+            flush_interval -1
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+
+    @assets path /assets/*
+    handle @assets {
+        root * WEB_ROOT
+        header Cache-Control "public, max-age=31536000, immutable"
+        file_server
+    }
+
+    handle {
+        root * WEB_ROOT
+        try_files {path} /index.html
+        header Cache-Control "no-cache"
+        file_server
+    }
+}

@@ -1,0 +1,11 @@
+# Install as /etc/wireguard/wg0.conf on the A100 with mode 0600.
+# The A100 initiates the tunnel so it also works from behind NAT.
+[Interface]
+Address = 10.66.0.2/24
+PrivateKey = A100_WG_PRIVATE_KEY
+
+[Peer]
+PublicKey = VPS_WG_PUBLIC_KEY
+Endpoint = VPS_PUBLIC_IP:51820
+AllowedIPs = 10.66.0.1/32
+PersistentKeepalive = 25

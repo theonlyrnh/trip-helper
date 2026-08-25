@@ -1,0 +1,31 @@
+[Unit]
+Description=Trip Helper Celery CPU worker
+Wants=network-online.target
+After=network-online.target postgresql.service redis-server.service
+
+[Service]
+Type=exec
+User=__APP_USER__
+Group=__APP_GROUP__
+WorkingDirectory=__APP_ROOT__/backend
+EnvironmentFile=__ENV_FILE__
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=HOME=__DATA_ROOT__
+Environment=XDG_CACHE_HOME=__DATA_ROOT__/cache
+ExecStart=__VENV_PATH__/bin/celery -A app.workers.celery_app worker -Q cpu,default --concurrency=2 --loglevel=INFO --hostname=trip-helper-cpu@%%H
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=120s
+LimitNOFILE=65536
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=__DATA_ROOT__
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
