@@ -1,16 +1,27 @@
 # Dependencies
 node_modules/
+.venv/
+backend/.venv/
+*.egg-info/
 
 # Build output
 frontend/dist/
 
 # Runtime data
 backend/data/
+backend/build/
+data/
+.local-web-runtime/
 *.db
 *.db-journal
 
 # Environment (keep template, exclude real keys)
 .env
+deploy/a100/.env.production
+deploy/a100/.env.tunnel
+deploy/local/.env.local
+deploy/vps/.env
+.trip-helper-tunnel/
 
 # IDE
 .vscode/
@@ -33,3 +44,7 @@ fapiao/
 
 # Local pytest temporary directory
 .pytest-tmp/
+
+# Local agent/runtime artifacts; never publish backups or extracted packages.
+backups/
+.tmp-pi-0791/

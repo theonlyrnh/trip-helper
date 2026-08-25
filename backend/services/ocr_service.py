@@ -31,9 +31,9 @@ class OCRService:
     def qwen(self):
         if self._qwen is None:
             self._qwen = Qwen3VLProvider(
-                api_url=settings.REMOTE_API_BASE_URL or "",
-                api_key=settings.REMOTE_API_KEY or "",
-                model_name=settings.REMOTE_MODEL_NAME or "Qwen3-VL-30B-A3B-Instruct",
+                settings.REMOTE_API_BASE_URL or "",
+                settings.REMOTE_API_KEY or "",
+                settings.REMOTE_MODEL_NAME or "Qwen3-VL-30B-A3B-Instruct",
             )
         return self._qwen
 
