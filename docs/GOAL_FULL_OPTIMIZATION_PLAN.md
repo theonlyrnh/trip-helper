@@ -501,6 +501,10 @@ Goal 代理应在每阶段完成后把日期、commit、测试命令、结果和
 - [x] 阶段 8：前端工作台微调（退避/可取消轮询、分页加载、lint/typecheck/test/build/E2E）
 - [x] 阶段 9：发布、备份和回滚演练（wheel/迁移/安全门禁；PostgreSQL/Redis 外部阻塞已记录）
 
+本地 checkpoint：`33950fa`（backend-contracts）、`7e7e7e7`
+（release-readiness）、`5570628`（workspace-polish）。这些提交仅在本地，
+不执行 push；未相关的根目录用户改动继续保留在工作区。
+
 每个勾选项必须附可复现证据。没有证据时保持未完成。
 
 ## 15. 最终报告格式

@@ -80,6 +80,17 @@ identifiers, and residual risks below this section.
 
 ## Stage evidence (2026-08-26)
 
+### Local checkpoints
+
+```text
+33950fa checkpoint(opt): backend-contracts
+7e7e7e7 checkpoint(opt): release-readiness
+5570628 checkpoint(opt): workspace-polish
+```
+
+These are local commits only. The original baseline archive remains outside
+Git, and unrelated root-level user edits remain untouched in the worktree.
+
 ### Stage 1: packaging, migrations, and workers
 
 ```text
