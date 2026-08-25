@@ -27,8 +27,8 @@ operation is used.
 | F-05 | `test_projection_rebuild_is_idempotent` | `app/services/trips.py`, database uniqueness | same focused pytest command |
 | F-06 | `test_manual_dates_override_inference_and_conflicts_are_explained` | `app/services/trips.py`, `app/services/recognition.py` | same focused pytest command |
 | F-07 | `test_worker_registry_is_loaded_by_standalone_entrypoint` plus worker startup smoke | `app/workers/celery_app.py`, `app/infrastructure/queue/celery.py` | focused pytest + worker smoke |
-| F-08 | OCR retry/terminal-state tests and export failure path | `app/services/jobs.py`, `app/workers/tasks.py`, `app/services/exports.py` | focused pytest |
-| F-09 | cancellation/conditional terminal transition tests | `app/services/jobs.py`, worker conditional transitions | focused pytest |
+| F-08 | `test_export_failure_reaches_terminal_job_and_export_state` plus OCR retry terminal tests | `app/services/jobs.py`, `app/workers/tasks.py`, `app/services/exports.py` | focused pytest |
+| F-09 | `test_cancelled_job_rejects_a_late_worker_terminal_write` | `app/services/jobs.py`, worker conditional transitions | focused pytest |
 | F-10 | `test_stale_invoice_writer_is_rejected` | `app/services/invoices.py`, `Invoice.version` | focused pytest |
 | F-11 | `test_sqlite_foreign_keys_are_enabled` | `app/infrastructure/db/session.py`, Alembic | focused pytest + Alembic upgrade |
 | F-12 | clean wheel entry/package import smoke | `backend/pyproject.toml`, package imports | wheel build/install smoke test |
@@ -109,7 +109,7 @@ upgrade head` passed on an isolated SQLite database.
 
 ### Stage 2-5: correctness, lifecycle, and file safety
 
-`PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q` passed **49**
+`PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q` passed **51**
 tests. The focused contracts cover reverse dates, endpoint allowance rules,
 zero/default amounts, settings snapshots, date conflicts, empty OCR manual
 review, idempotent projections, conditional cancellation/terminal updates,

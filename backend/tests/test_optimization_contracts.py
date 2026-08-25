@@ -366,3 +366,68 @@ def test_celery_gpu_handoff_persists_queued_state_before_dispatch(web_runtime, m
         assert db.get(Job, job.id).state == "QUEUED"
     finally:
         db.close()
+
+
+def test_export_failure_reaches_terminal_job_and_export_state(web_runtime, monkeypatch) -> None:
+    from app.services.jobs import create_job
+    from app.workers import tasks
+
+    db = web_runtime.session_factory()
+    try:
+        user = User(email="export-failure@example.test", password_hash="x")
+        db.add(user)
+        db.flush()
+        trip = Trip(owner_id=user.id, title="export failure")
+        db.add(trip)
+        db.flush()
+        export = Export(owner_id=user.id, trip_id=trip.id, format="PDF")
+        db.add(export)
+        db.flush()
+        job = create_job(
+            db,
+            owner_id=user.id,
+            kind="EXPORT_PDF",
+            trip_id=trip.id,
+            queue="cpu",
+            result_ref=export.id,
+        )
+        db.commit()
+        job_id, export_id = job.id, export.id
+        def fail_export(*_args, **_kwargs):
+            raise RuntimeError("fixture export failure")
+
+        monkeypatch.setattr(tasks, "_create_export", fail_export)
+        tasks.execute_job.run(job_id)
+        db.expire_all()
+        failed_job = db.get(Job, job_id)
+        failed_export = db.get(Export, export_id)
+        assert failed_job is not None and failed_export is not None
+        assert failed_job.state == "FAILED"
+        assert failed_job.error_code == "PROCESSING_FAILED"
+        assert failed_export.status == "FAILED"
+        assert failed_export.error_code == "EXPORT_FAILED"
+    finally:
+        db.close()
+
+
+def test_cancelled_job_rejects_a_late_worker_terminal_write() -> None:
+    from app.services.jobs import cancel_job, conditional_terminal_update
+
+    db, _ = make_db()
+    try:
+        user = User(email="cancel-race@example.test", password_hash="x")
+        db.add(user)
+        db.flush()
+        trip = Trip(owner_id=user.id, title="cancel race")
+        db.add(trip)
+        db.flush()
+        job = Job(owner_id=user.id, trip_id=trip.id, kind="PROCESS_DOCUMENT", state="RUNNING", attempt=1)
+        db.add(job)
+        db.commit()
+        cancelled = cancel_job(db, job)
+        assert cancelled.state == "CANCELLED"
+        assert conditional_terminal_update(db, job, state="SUCCEEDED", attempt=1, message="late worker") is False
+        db.refresh(job)
+        assert job.state == "CANCELLED"
+    finally:
+        db.close()
