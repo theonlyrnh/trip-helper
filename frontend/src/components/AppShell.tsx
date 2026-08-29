@@ -15,35 +15,37 @@ export function AppShell() {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <NavLink to="/trips" className="brand" aria-label="Trip Helper 项目列表">
-          <span className="brand-mark"><FolderKanban size={19} /></span>
-          <span>Trip Helper</span>
-        </NavLink>
-        <nav className="navigation" aria-label="主导航">
-          <NavLink to="/trips" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
-            <FolderKanban size={17} />
-            <span>项目</span>
+      <header className="sidebar app-header">
+        <div className="app-header-inner">
+          <NavLink to="/trips" className="brand" aria-label="Trip Helper 项目列表">
+            <span className="brand-mark"><FolderKanban size={19} /></span>
+            <span>Trip Helper</span>
           </NavLink>
-          <NavLink to="/dashboard" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
-            <BarChart3 size={17} />
-            <span>年度出差</span>
-          </NavLink>
-          <NavLink to="/settings" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
-            <Settings size={17} />
-            <span>设置</span>
-          </NavLink>
-        </nav>
-        <div className="sidebar-user">
-          <div className="user-identity">
-            <span className="user-avatar"><UserRound size={16} /></span>
-            <span title={user?.email}>{user?.display_name || user?.email || "当前用户"}</span>
+          <nav className="navigation" aria-label="主导航">
+            <NavLink to="/trips" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
+              <FolderKanban size={17} />
+              <span>项目</span>
+            </NavLink>
+            <NavLink to="/dashboard" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
+              <BarChart3 size={17} />
+              <span>年度出差</span>
+            </NavLink>
+            <NavLink to="/settings" className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}>
+              <Settings size={17} />
+              <span>设置</span>
+            </NavLink>
+          </nav>
+          <div className="sidebar-user">
+            <div className="user-identity">
+              <span className="user-avatar"><UserRound size={16} /></span>
+              <span title={user?.email}>{user?.display_name || user?.email || "当前用户"}</span>
+            </div>
+            <button className="icon-button sidebar-logout" type="button" onClick={() => void handleLogout()} disabled={logout.isPending} aria-label="退出登录" title="退出登录">
+              <LogOut size={17} />
+            </button>
           </div>
-          <button className="icon-button sidebar-logout" type="button" onClick={() => void handleLogout()} disabled={logout.isPending} aria-label="退出登录" title="退出登录">
-            <LogOut size={17} />
-          </button>
         </div>
-      </aside>
+      </header>
       <main className="app-content"><Outlet /></main>
     </div>
   );

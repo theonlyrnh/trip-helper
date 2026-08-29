@@ -27,6 +27,20 @@ const PAGE_SIZE = 6;
 
 type ProjectFilter = "ALL" | "ACTIVE" | "COMPLETED";
 type ProjectView = "GRID" | "LIST";
+type ProjectStatusTone = "active" | "review" | "success" | "danger" | "neutral";
+
+const activeProjectStates = new Set(["PENDING", "QUEUED", "RUNNING", "RETRYING", "PROCESSING", "PREPROCESSING"]);
+const reviewProjectStates = new Set(["ANALYZED", "READY_FOR_REVIEW", "NEEDS_REVIEW"]);
+const successfulProjectStates = new Set(["FINALIZED", "COMPLETED", "SUCCEEDED"]);
+const failedProjectStates = new Set(["FAILED", "CANCELLED"]);
+
+function projectStatusTone(status: string): ProjectStatusTone {
+  if (successfulProjectStates.has(status)) return "success";
+  if (reviewProjectStates.has(status)) return "review";
+  if (failedProjectStates.has(status)) return "danger";
+  if (activeProjectStates.has(status)) return "active";
+  return "neutral";
+}
 
 function isCompletedProject(trip: Trip): boolean {
   return ["FINALIZED", "COMPLETED", "CANCELLED"].includes(trip.status);
@@ -121,7 +135,20 @@ export function TripsPage() {
         </div>
       </header>
 
-      {trips.isPending && <div className="empty-state">正在加载项目...</div>}
+      {trips.isPending && (
+        <div className="project-skeleton-grid" role="status" aria-label="正在加载项目">
+          <span className="visually-hidden">正在加载项目...</span>
+          {Array.from({ length: PAGE_SIZE }, (_, index) => (
+            <div className="project-skeleton-card" aria-hidden="true" key={index}>
+              <span className="project-skeleton-line project-skeleton-badge" />
+              <span className="project-skeleton-line project-skeleton-title" />
+              <span className="project-skeleton-line project-skeleton-copy" />
+              <span className="project-skeleton-metrics" />
+              <span className="project-skeleton-line project-skeleton-footer" />
+            </div>
+          ))}
+        </div>
+      )}
       {trips.error && (
         <div className="empty-state error-state">
           <CircleAlert size={20} />
@@ -148,8 +175,8 @@ export function TripsPage() {
             <div className="projects-toolbar-tools">
               <label className="project-search"><Search size={15} aria-hidden="true" /><span className="visually-hidden">搜索项目</span><input aria-label="搜索项目" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="搜索项目名称或地点..." /></label>
               <div className="project-view-switch" role="group" aria-label="项目展示方式">
-                <button className={view === "GRID" ? "active" : ""} type="button" onClick={() => setView("GRID")} aria-label="网格视图" title="网格视图"><LayoutGrid size={16} /></button>
-                <button className={view === "LIST" ? "active" : ""} type="button" onClick={() => setView("LIST")} aria-label="列表视图" title="列表视图"><List size={16} /></button>
+                <button className={view === "GRID" ? "active" : ""} type="button" onClick={() => setView("GRID")} aria-label="网格视图" aria-pressed={view === "GRID"} title="网格视图"><LayoutGrid size={16} /></button>
+                <button className={view === "LIST" ? "active" : ""} type="button" onClick={() => setView("LIST")} aria-label="列表视图" aria-pressed={view === "LIST"} title="列表视图"><List size={16} /></button>
               </div>
             </div>
           </section>
@@ -180,10 +207,11 @@ export function TripsPage() {
 
 function TripCard({ trip, view, onOpen, onDelete }: { trip: Trip; view: ProjectView; onOpen: () => void; onDelete: () => void }) {
   const summary = trip.summary;
+  const statusTone = projectStatusTone(trip.status);
   return (
     <article className={`trip-card project-card project-card-${view.toLowerCase()}`}>
       <div className="trip-card-topline">
-        <div className="trip-card-badges"><span className="status-badge">{labelForState(trip.status)}</span><span className="status-badge neutral-badge">{labelForProjectType(trip.project_type)}</span><span className={`project-reimbursement-state project-reimbursement-${trip.reimbursement_status.toLowerCase()}`}>{labelForReimbursementStatus(trip.reimbursement_status)}</span></div>
+        <div className="trip-card-badges"><span className={`status-badge project-status project-status-${statusTone}`}>{labelForState(trip.status)}</span><span className="status-badge neutral-badge">{labelForProjectType(trip.project_type)}</span><span className={`project-reimbursement-state project-reimbursement-${trip.reimbursement_status.toLowerCase()}`}>{labelForReimbursementStatus(trip.reimbursement_status)}</span></div>
         <div className="trip-card-meta-actions">
           <time dateTime={trip.updated_at}>更新于 {formatDate(trip.updated_at)}</time>
           <button className="icon-button danger-button trip-delete-button" type="button" onClick={onDelete} aria-label={`删除项目：${trip.title}`} title="删除项目"><Trash2 size={15} /></button>

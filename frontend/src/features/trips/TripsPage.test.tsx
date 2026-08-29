@@ -75,6 +75,7 @@ describe("TripsPage", () => {
     const { container } = renderPage();
 
     await screen.findByText("进行中项目 7");
+    expect(screen.getAllByText("可复核")[0]).toHaveClass("project-status-review");
     expect(screen.queryByText("进行中项目 1")).not.toBeInTheDocument();
     expect(screen.getByText("进行中项目 7")).toBeInTheDocument();
 
@@ -84,6 +85,7 @@ describe("TripsPage", () => {
 
     await user.click(screen.getByRole("tab", { name: /已完结/ }));
     expect(screen.getByText("已完结项目 9")).toBeInTheDocument();
+    expect(screen.getAllByText("已完成")[0]).toHaveClass("project-status-success");
     expect(screen.getAllByText("已报销").length).toBeGreaterThan(0);
     expect(screen.queryByText("进行中项目 1")).not.toBeInTheDocument();
 

@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { LockKeyhole, LogIn } from "lucide-react";
+import { LoaderCircle, LockKeyhole, LogIn } from "lucide-react";
 import { authApi } from "../../api/resources";
 import { sessionQueryKey, useSession } from "./session";
 
@@ -37,23 +37,25 @@ export function LoginPage() {
 
   return (
     <main className="login-page">
-      <form className="login-panel" onSubmit={submit}>
-        <div className="login-mark" aria-hidden="true"><LockKeyhole size={24} /></div>
-        <div>
-          <h1>Trip Helper</h1>
-          <p>登录后管理属于你的报销项目和票据。</p>
-        </div>
+      <form className="login-panel" onSubmit={submit} aria-busy={login.isPending}>
+        <header className="login-header">
+          <div className="login-mark" aria-hidden="true"><LockKeyhole size={24} /></div>
+          <div>
+            <h1>Trip Helper</h1>
+            <p>登录后管理属于你的报销项目和票据。</p>
+          </div>
+        </header>
         <label className="field">
           <span>账号</span>
-          <input type="text" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required />
+          <input type="email" name="email" inputMode="email" autoComplete="username" placeholder="name@example.com" value={email} onChange={(event) => setEmail(event.target.value)} required />
         </label>
         <label className="field">
           <span>密码</span>
-          <input type="password" autoComplete="current-password" minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} required />
+          <input type="password" name="password" autoComplete="current-password" minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} required />
         </label>
         {login.error && <p className="form-error" role="alert">登录失败，请检查账号和密码后重试。</p>}
         <button className="button button-primary button-wide" type="submit" disabled={login.isPending}>
-          <LogIn size={17} />
+          {login.isPending ? <LoaderCircle className="spin" size={17} aria-hidden="true" /> : <LogIn size={17} aria-hidden="true" />}
           {login.isPending ? "正在登录" : "登录"}
         </button>
       </form>
